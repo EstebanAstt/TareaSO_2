@@ -282,11 +282,22 @@ int main(int argc, char* argv[]) {
     std::cout << "Espera escritoras (prom/max): " << prom_esp_esc_us << " us / " << max_esp_esc << " us\n";
     std::cout << "correcto=" << (correcto ? "SI" : "NO") << "\n";
 
+    //R6
     if (modo == "cond" && con_traza && ptr_monitor != nullptr) {
         auto res = verificar_traza(ptr_monitor->obtener_traza(), politica);
+        
+        std::cout << "\n--- Verificacion de Traza (R6) ---\n";
+        if (!res.politica_ok) {
+            std::cerr << "FALLO: La traza NO cumple las reglas de exclusion mutua o politica.\n";
+        } else {
+            std::cout << "EXITO: La traza es correcta segun la politica.\n";
+        }
+
         std::cout << "politica_ok=" << (res.politica_ok ? "SI" : "NO")
                   << " | indicador_evidencia=" << res.indicador_evidencia << "\n";
-    } else if (modo == "atomic" && ptr_atomico != nullptr) {
+    } 
+    //fin R6
+    else if (modo == "atomic" && ptr_atomico != nullptr) {
         auto stats = ptr_atomico->obtener_estadisticas();
         std::cout << "Intentos fallidos atomic -> ocupado: " << stats.fallos_ocupado
                   << ", escritores_esperando: " << stats.fallos_escritores_esperando

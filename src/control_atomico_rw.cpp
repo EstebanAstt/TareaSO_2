@@ -2,7 +2,7 @@
 
 void ControlAtomicoRW::entrar_lectura() {
     while (true){ // se hace un while ya que la hebra lectora debe leer hasta que pueda entrar (no haya escritora editando o esperando)
-        std::uint64_t estado_actual = estado.load(); //se crea una variable con 64 bits
+        std::uint64_t estado_actual = estado.load(); //lee el valor de la variable atomica y la copia en una copia local de 64 bits
         bool hay_escritora_activa =
             (estado_actual & BIT_ESCRITORA) != 0; //revisa el bit 16 con una mascara para ver si hay escritoras o no
 

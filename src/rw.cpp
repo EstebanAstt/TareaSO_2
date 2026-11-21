@@ -1,7 +1,7 @@
-#include "control_rw.hpp"
-#include "monitor_rw.hpp"
-#include "control_atomico_rw.hpp"
-#include "verificador.hpp"
+#include "../include/control_rw.hpp"
+#include "../include/monitor_rw.hpp"
+#include "../include/control_atomico_rw.hpp"
+#include "../include/verificador.hpp"
 
 #include <iostream>
 #include <string>

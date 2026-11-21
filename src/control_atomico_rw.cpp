@@ -1,4 +1,4 @@
-#include "control_atomico_rw.hpp"
+#include "../include/control_atomico_rw.hpp"
 
 void ControlAtomicoRW::entrar_lectura() {
     // Implementación real pendiente (Parte II)

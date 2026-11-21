@@ -2,6 +2,7 @@
 #include "control_rw.hpp"
 #include <mutex>
 #include <condition_variable>
+#include <vector>
 
 class MonitorRW : public ControlRW {
 public:
@@ -17,5 +18,15 @@ private:
     bool con_traza;
     std::mutex m;
     std::vector<AnotacionTraza> traza;
-    //ACA SE AÑADEN LAS condition_variable Y CONTADORES DE ESTADO
+
+    // Estado de admisión (R3 y R4)
+    int lectoras_activas = 0;
+    int lectoras_esperando = 0;
+    bool escritora_activa = false;
+    int escritoras_esperando = 0;
+
+    std::condition_variable cv_lectoras;
+    std::condition_variable cv_escritoras;
+
+    void anotar(Tipo tipo, Accion accion, long turno);
 };

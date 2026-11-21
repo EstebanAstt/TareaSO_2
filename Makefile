@@ -1,14 +1,15 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -pthread
+CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -pthread -Iinclude
 
-OBJS = rw.o monitor_rw.o control_atomico_rw.o verificador.o
+SRCS = src/rw.cpp src/monitor_rw.cpp src/control_atomico_rw.cpp src/verificador.cpp
+OBJS = $(SRCS:.cpp=.o)
 
 all: rw
 
 rw: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o rw $(OBJS)
 
-%.o: %.cpp
+src/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:

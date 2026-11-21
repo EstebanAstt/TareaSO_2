@@ -1,4 +1,4 @@
-#include "control_atomico_rw.hpp"
+#include "../include/control_atomico_rw.hpp"
 
 void ControlAtomicoRW::entrar_lectura() {
     while (true){ // se hace un while ya que la hebra lectora debe leer hasta que pueda entrar (no haya escritora editando o esperando)

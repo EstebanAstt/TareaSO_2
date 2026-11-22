@@ -1,5 +1,7 @@
 #include "../include/control_atomico_rw.hpp"
 
+thread_local EstadisticasAtomico estadisticas_locales;
+
 void ControlAtomicoRW::entrar_lectura() {
     while (true){ // se hace un while ya que la hebra lectora debe leer hasta que pueda entrar (no haya escritora editando o esperando)
         std::uint64_t estado_actual = estado.load(); //lee el valor de la variable atomica y la copia en una copia local de 64 bits
@@ -9,14 +11,20 @@ void ControlAtomicoRW::entrar_lectura() {
         bool hay_escritoras_esperando = 
             (estado_actual & (0xFFFFULL << 32)) != 0; //revisa los 16 bits en adelante desde el 32 hacia la izquierda, tambien con una mascara si encuentra algo desigual a 0 significa que hay escritoras esperando
         
-        if (hay_escritora_activa || hay_escritoras_esperando){
-            continue;}// si existe escritora actuva o esperando vuelve al inciio del while
+        if (hay_escritora_activa ){ //fallo por si hay una escritora activa
+            estadisticas_locales.fallos_ocupado++;
+            continue;}// vuelve al inciio del while
+
+        if (hay_escritoras_esperando){ //fallo por si hay escritoras esperando
+            estadisticas_locales.fallos_escritores_esperando++;
+            continue;}
         
         std::uint64_t nuevo_estado = estado_actual + UNA_LECTORA; // se crea una nueva variable con el estado actual pero se le suma una lectora activa
     
         if (estado.compare_exchange_weak(estado_actual, nuevo_estado)) { // si estado actual y nuevo estado coinciden, significa que logro incrementar el contador, ya tiene permiso para leer, si CAS falla vuelve a empezar
             return;
         }
+        estadisticas_locales.fallos_cas++;
     }
 }
 
@@ -38,6 +46,7 @@ void ControlAtomicoRW::entrar_escritura() {
             (estado_actual & BIT_ESCRITORA) != 0;
 
         if (hay_lectoras_activas || hay_escritora_activa) { // si hay lectoras o escritora activa vuelve al inicio del while
+            estadisticas_locales.fallos_ocupado++; 
             continue;
         }
         std::uint64_t nuevo_estado = (estado_actual - UNA_ESPERANDO) | BIT_ESCRITORA; // el nuevo estado sera el estado actual - una escritora esperando y activa el bit de escritora activa
@@ -45,6 +54,7 @@ void ControlAtomicoRW::entrar_escritura() {
         if (estado.compare_exchange_weak(estado_actual, nuevo_estado)) { // si la comparación es correcta, CAS es exitoso la escritora esta dentro, sino vuelve a hacer el proceso
             return;
         }
+        estadisticas_locales.fallos_cas++;
     }
 }
 
@@ -54,5 +64,5 @@ void ControlAtomicoRW::salir_escritura() {
 }
 
 EstadisticasAtomico ControlAtomicoRW::obtener_estadisticas() const {
-    return EstadisticasAtomico{};
+    return estadisticas_locales;
 }

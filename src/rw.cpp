@@ -28,6 +28,7 @@ std::atomic<bool> diag_violacion_exclusion{false};
 struct MetricasHebra {
     double suma_espera_us = 0.0;
     double max_espera_us = 0.0;
+    EstadisticasAtomico estadisticas; // tendra estructura de tres contadores de fallos
 };
 
 // Actualiza diag_max_lectoras sin carreras de datos usando CAS (Compare & Swap)
@@ -91,6 +92,9 @@ void tarea_lectora(int id, long K, long dur_lec_us, ControlRW* control, Registro
         diag_lectoras_activas.fetch_sub(1, std::memory_order_seq_cst);
         control->salir_lectura();
     }
+    if (auto* atomico = dynamic_cast<ControlAtomicoRW*>(control)) { //estadisticas individuales de cada hebra
+    metricas.estadisticas = atomico->obtener_estadisticas();
+    }
 }
 
 void tarea_escritora(int id, long K, long dur_esc_us, ControlRW* control, Registro& reg, MetricasHebra& metricas) {
@@ -121,6 +125,9 @@ void tarea_escritora(int id, long K, long dur_esc_us, ControlRW* control, Regist
         // Diagnóstico al salir (R2)
         diag_escritoras_activas.fetch_sub(1, std::memory_order_seq_cst);
         control->salir_escritura();
+    }
+    if (auto* atomico = dynamic_cast<ControlAtomicoRW*>(control)) { //estadisticas individuales de cada hebra
+        metricas.estadisticas = atomico->obtener_estadisticas();
     }
 }
 
@@ -236,6 +243,13 @@ int main(int argc, char* argv[]) {
         h.join();
     }
 
+    EstadisticasAtomico estadisticas_totales; //R10
+    for (const auto& m : metricas) {
+        estadisticas_totales.fallos_ocupado += m.estadisticas.fallos_ocupado;
+        estadisticas_totales.fallos_escritores_esperando += m.estadisticas.fallos_escritores_esperando;
+        estadisticas_totales.fallos_cas += m.estadisticas.fallos_cas;
+        }
+
     double cpu_fin_us = obtener_cpu_us();
     auto pared_fin = std::chrono::steady_clock::now();
 
@@ -298,7 +312,7 @@ int main(int argc, char* argv[]) {
     } 
     //fin R6
     else if (modo == "atomic" && ptr_atomico != nullptr) {
-        auto stats = ptr_atomico->obtener_estadisticas();
+        auto stats = estadisticas_totales;
         std::cout << "Intentos fallidos atomic -> ocupado: " << stats.fallos_ocupado
                   << ", escritores_esperando: " << stats.fallos_escritores_esperando
                   << ", cas: " << stats.fallos_cas << "\n";

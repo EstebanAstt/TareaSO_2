@@ -21,5 +21,9 @@ public:
 
 private:
     static_assert(std::atomic<std::uint64_t>::is_always_lock_free);
+     // Formato cartel 64 bits (palabra atomica)
+    static constexpr std::uint64_t UNA_LECTORA   = 1ULL; //   bits  0-15 : lectoras dentro (lectoras activas)
+    static constexpr std::uint64_t BIT_ESCRITORA = 1ULL << 16; //   bit   16   : escritora dentro (0 o 1)
+    static constexpr std::uint64_t UNA_ESPERANDO = 1ULL << 32; //   bits 32-47 : escritoras esperando
     std::atomic<std::uint64_t> estado{0};
 };

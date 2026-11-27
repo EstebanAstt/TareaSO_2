@@ -2,6 +2,8 @@
 #include "control_rw.hpp"
 #include <mutex>
 #include <condition_variable>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
 class MonitorRW : public ControlRW {
@@ -35,5 +37,21 @@ private:
     std::condition_variable cv_lectoras;
     std::condition_variable cv_escritoras;
 
+    // Estado de admisión exclusivo para R5 (Política FIFO):
+    // - siguiente_turno asigna turnos consecutivos desde 0 en orden de llegada al monitor.
+    // - turno_actual indica el único turno autorizado a concretar su ingreso (Entra), lo que
+    //   garantiza orden estricto FIFO (R5 y R6) y permite admitir lectoras consecutivas en paralelo.
+    // - turno_activo guarda el turno de cada hebra activa para registrarlo también en Sale.
+    long siguiente_turno = 0;
+    long turno_actual = 0;
+    std::condition_variable cv_fifo;
+    std::unordered_map<std::thread::id, long> turno_activo;
+
     void anotar(Tipo tipo, Accion accion, long turno);
+
+    // Métodos privados auxiliares para R5 (Política FIFO), invocados siempre con lock(m) adquirido
+    void entrar_lectura_fifo(std::unique_lock<std::mutex>& lock);
+    void salir_lectura_fifo();
+    void entrar_escritura_fifo(std::unique_lock<std::mutex>& lock);
+    void salir_escritura_fifo();
 };

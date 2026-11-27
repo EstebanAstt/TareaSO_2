@@ -50,7 +50,8 @@ void MonitorRW::entrar_lectura() {
         anotar(Tipo::Lectora, Accion::Entra, -1);
 
     } else {
-        // Espacio reservado para R5 (Política FIFO)
+        // R5 (Política FIFO)
+        entrar_lectura_fifo(lock);
     }
 }
 
@@ -81,7 +82,8 @@ void MonitorRW::salir_lectura() {
         }
 
     } else {
-        // Espacio reservado para R5 (Política FIFO)
+        // R5 (Política FIFO)
+        salir_lectura_fifo();
     }
 }
 
@@ -116,7 +118,8 @@ void MonitorRW::entrar_escritura() {
         anotar(Tipo::Escritora, Accion::Entra, -1);
 
     } else {
-        // Espacio reservado para R5 (Política FIFO)
+        // R5 (Política FIFO)
+        entrar_escritura_fifo(lock);
     }
 }
 
@@ -151,7 +154,93 @@ void MonitorRW::salir_escritura() {
         }
 
     } else {
-        // Espacio reservado para R5 (Política FIFO)
+        // R5 (Política FIFO)
+        salir_escritura_fifo();
+    }
+}
+
+void MonitorRW::entrar_lectura_fifo(std::unique_lock<std::mutex>& lock) {
+    // Cada solicitud recibe un turno consecutivo (desde 0) al registrarse en el monitor
+    const long mi_turno = siguiente_turno++;
+    anotar(Tipo::Lectora, Accion::Pide, mi_turno);
+
+    // R5 + R6 + R7: espera mientras haya una escritora activa o no sea su turno de ingreso.
+    // Exigir mi_turno == turno_actual impide que una lectora adelante a una escritora con
+    // turno anterior pendiente y garantiza que el k-esimo Entra corresponda al turno k.
+    cv_fifo.wait(lock, [this, mi_turno]() {
+        return !escritora_activa && mi_turno == turno_actual;
+    });
+
+    lectoras_activas++;
+    turno_actual++; // Habilita de inmediato a la siguiente solicitud en orden FIFO
+    if (con_traza) {
+        turno_activo[std::this_thread::get_id()] = mi_turno;
+    }
+    anotar(Tipo::Lectora, Accion::Entra, mi_turno);
+
+    // Si hay solicitudes esperando detrás (p. ej., otra lectora consecutiva con turno == turno_actual),
+    // se notifica para que pueda entrar simultáneamente mientras esta lectora lee fuera del monitor.
+    if (siguiente_turno > turno_actual) {
+        cv_fifo.notify_all();
+    }
+}
+
+void MonitorRW::salir_lectura_fifo() {
+    lectoras_activas--;
+
+    long mi_turno = -1;
+    if (con_traza) {
+        auto it = turno_activo.find(std::this_thread::get_id());
+        if (it != turno_activo.end()) {
+            mi_turno = it->second;
+            turno_activo.erase(it);
+        }
+    }
+    anotar(Tipo::Lectora, Accion::Sale, mi_turno);
+
+    // Al salir la última lectora activa, si hay solicitudes esperando (p. ej., una escritora
+    // esperando en turno_actual), se despierta para que pueda ingresar.
+    if (lectoras_activas == 0 && siguiente_turno > turno_actual) {
+        cv_fifo.notify_all();
+    }
+}
+
+void MonitorRW::entrar_escritura_fifo(std::unique_lock<std::mutex>& lock) {
+    // Cada solicitud recibe un turno consecutivo (desde 0) al registrarse en el monitor
+    const long mi_turno = siguiente_turno++;
+    anotar(Tipo::Escritora, Accion::Pide, mi_turno);
+
+    // R5 + R6 + R7: la escritora espera a que sea su turno y a que terminen todas las
+    // lectoras admitidas antes de su turno (y no haya otra escritora activa).
+    // Mientras turno_actual permanece en mi_turno, bloquea el ingreso de lectoras posteriores.
+    cv_fifo.wait(lock, [this, mi_turno]() {
+        return !escritora_activa && lectoras_activas == 0 && mi_turno == turno_actual;
+    });
+
+    escritora_activa = true;
+    turno_actual++; // Deja apuntado el siguiente turno, que seguirá bloqueado mientras escritora_activa sea true
+    if (con_traza) {
+        turno_activo[std::this_thread::get_id()] = mi_turno;
+    }
+    anotar(Tipo::Escritora, Accion::Entra, mi_turno);
+}
+
+void MonitorRW::salir_escritura_fifo() {
+    escritora_activa = false;
+
+    long mi_turno = -1;
+    if (con_traza) {
+        auto it = turno_activo.find(std::this_thread::get_id());
+        if (it != turno_activo.end()) {
+            mi_turno = it->second;
+            turno_activo.erase(it);
+        }
+    }
+    anotar(Tipo::Escritora, Accion::Sale, mi_turno);
+
+    // Al liberar el recurso exclusivo, se notifica para que ingrese la solicitud en turno_actual
+    if (siguiente_turno > turno_actual) {
+        cv_fifo.notify_all();
     }
 }
 
